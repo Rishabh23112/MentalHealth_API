@@ -9,6 +9,7 @@ from typing import List, Optional
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from dotenv import load_dotenv
 
 
@@ -82,7 +83,7 @@ except Exception as e:
     qdrant_client = None
 
 try:
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3, google_api_key=GEMINI_API_KEY)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.7, google_api_key=GEMINI_API_KEY)
     logger.info("✅ ChatGoogleGenerativeAI initialized")
 except Exception as e:
     logger.error(f"❌ Failed to initialize LLM: {e}")
@@ -186,94 +187,30 @@ def save_message_to_mongo(session_id: str, role: str, content: str):
     )
 
 
-SYSTEM_PROMPT = """
-You are a supportive Mental Health Assistant. Your role is to provide empathetic, evidence-based guidance for a wide range of mental health and wellness topics.
-
-**CRITICAL INSTRUCTION - HONOR USER REQUESTS:**
-- If the user asks for "instant solution" or "quick fix" or similar - provide IMMEDIATE, actionable steps they can do RIGHT NOW
-- If the user asks for "detailed explanation" - provide comprehensive information
-- If the user asks for "exercises" or "techniques" - focus on specific practices
-- LISTEN TO WHAT THEY'RE ASKING FOR AND DELIVER EXACTLY THAT
-
-**CORE PRIORITIES:**
-1. **Safety First**: If the user mentions self-harm, suicide, or crisis - IMMEDIATELY provide:
-   - National Suicide Prevention Lifeline: 988
-   - Crisis Text Line: Text HOME to 741741
-   - Emergency Services: 911
-
-2. **Understand the User**: Listen to what they're actually asking about:
-   - Mental health concerns (anxiety, depression, stress, relationships)
-   - Wellness tips (sleep, exercise, mindfulness)
-   - Coping strategies
-   - General life advice
-   - Information and education
-   - Quick solutions vs. detailed explanations vs. exercises
-
-3. **Respond Appropriately**: Match your response to THEIR specific request, not a preset template
-
-**YOUR APPROACH:**
-- Be warm, empathetic, and non-judgmental
-- Ask clarifying questions if needed
-- Provide practical, actionable advice
-- Use evidence-based approaches when relevant
-- Acknowledge the user's feelings
-- Avoid assumptions
-- **MOST IMPORTANTLY: Give them what they ask for, not what you think they need**
-
-**OUTPUT FORMAT:**
-<thinking>
-- What is the user SPECIFICALLY asking for?
-- Are they in crisis? If yes, provide resources immediately
-- Do they want quick tips, detailed info, exercises, or something else?
-- What exactly can I deliver to address their request?
-</thinking>
-
-<response>
-[Your empathetic, helpful response tailored to their SPECIFIC REQUEST - not generic advice]
-</response>
-
-**Remember:** Listen to what they're saying, not what you expect them to say. Everyone's situation is unique. Deliver what they ask for.
-"""
+class ChatRequest(BaseModel):
+    """Pydantic model for chat requests."""
+    query: str
+    session_id: str
 
 
-def get_mongo_history(session_id: str, limit: int = 10) -> List:
-    """Fetches the last N messages for a specific user session."""
-    record = chat_collection.find_one({"session_id": session_id})
-    if not record:
-        return []
-    
-    messages = []
-    
-    for msg in record.get("messages", [])[-limit:]:
-        if msg["role"] == "user":
-            messages.append(HumanMessage(content=msg["content"]))
-        elif msg["role"] == "ai":
-            messages.append(AIMessage(content=msg["content"]))
-        elif msg["role"] == "system":
-            messages.append(SystemMessage(content=msg["content"]))
-    
-    return messages
+SYSTEM_PROMPT = """You are a Mental Health Support Assistant. Your goal is to listen carefully to the user's specific concern and provide personalized, actionable guidance.
 
-def save_message_to_mongo(session_id: str, role: str, content: str):
-    """Appends a message to the user's history in MongoDB."""
-    message_doc = {
-        "role": role,
-        "content": content,
-        "timestamp": datetime.datetime.utcnow()
-    }
-    chat_collection.update_one(
-        {"session_id": session_id},
-        {"$push": {"messages": message_doc}},
-        upsert=True
-    )
+**Important Guidelines:**
+1. Focus ONLY on what the user is asking about RIGHT NOW - don't give generic advice
+2. Be warm, empathetic, and conversational
+3. If they mention crisis/self-harm: Provide 988 (Suicide Lifeline) or Text HOME to 741741
+4. Provide practical, specific advice relevant to their situation
+5. Each response should be unique based on their actual question
+
+Respond directly and naturally - no need for special formatting. Just have a helpful conversation."""
 
 
 # --- API ENDPOINT ---
 
 @app.post("/chat")
 async def chat_endpoint(
-    query: str,
-    session_id: str,
+    query: str = Form(...),
+    session_id: str = Form(...),
     file: UploadFile = File(None)
 ):
     """
@@ -313,8 +250,13 @@ async def chat_endpoint(
         # RAG(Qdrant)
         docs = []
         try:
-            docs = vector_store.similarity_search(query, k=3)
-            rag_context = "\n".join([f"PROTOCOL: {d.page_content} (Source: {d.metadata.get('source', 'Unknown')})" for d in docs])
+            if vector_store:
+                docs = vector_store.similarity_search(query, k=3)
+                rag_context = "\n".join([f"PROTOCOL: {d.page_content} (Source: {d.metadata.get('source', 'Unknown')})" for d in docs])
+                logger.info(f"✅ Retrieved {len(docs)} documents from knowledge base")
+            else:
+                logger.warning("⚠️ Vector store not initialized")
+                rag_context = "[System: Knowledge base unavailable]"
         except Exception as e:
             logger.error(f"⚠️ RAG search failed: {e}")
             rag_context = "[System: Unable to retrieve knowledge base context]"
@@ -326,25 +268,22 @@ async def chat_endpoint(
             role_name = "User" if isinstance(msg, HumanMessage) else "AI"
             history_text += f"{role_name}: {msg.content}\n"
 
+        logger.info(f"📚 Chat History for session {session_id}: {len(history_msgs)} messages")
+        logger.info(f"🔍 Query: {query}")
+        logger.info(f"📖 RAG Context: {rag_context[:200] if rag_context else 'None'}")
         
-        final_prompt = f"""
-        {SYSTEM_PROMPT}
-        
-        ================================
-        MEMORY (Past Conversation):
-        {history_text}
-        ================================
-        
-        TRUSTED KNOWLEDGE BASE (RAG):
-        {rag_context}
-        
-        FILE CONTEXT:
-        {file_context}
-        
-        USER INPUT:
-        {query}
-        """
+        final_prompt = f"""{SYSTEM_PROMPT}
 
+CURRENT USER QUESTION: {query}
+
+{"CONVERSATION HISTORY:" if history_text else ""}
+{history_text}
+
+KNOWLEDGE BASE CONTEXT:
+{rag_context}
+"""
+
+        logger.info(f"📤 Sending to LLM:\n{final_prompt[:400]}")
         
         try:
             response = llm.invoke([HumanMessage(content=final_prompt)])
@@ -353,6 +292,7 @@ async def chat_endpoint(
             raise HTTPException(status_code=500, detail=f"AI processing error: {str(e)}")
         
         full_content = response.content
+        logger.info(f"📝 LLM Raw Response:\n{full_content[:500]}")
 
         # Extract thinking and response with fallback
         thinking_match = re.search(r'<thinking>(.*?)</thinking>', full_content, re.DOTALL)
@@ -361,17 +301,15 @@ async def chat_endpoint(
         if thinking_match:
             ai_thinking = thinking_match.group(1).strip()
         else:
-            ai_thinking = "Processed user request and generated response."
+            ai_thinking = "Processing your request..."
         
-        # If XML tags not found, use entire response as reply
         if response_match:
             final_reply = response_match.group(1).strip()
+            logger.info("✅ Extracted response from XML tags")
         else:
-            logger.warning("⚠️ XML tags not found in LLM response. Using full response.")
             final_reply = full_content.strip()
 
-        # Log the thinking process 
-        logger.info({ai_thinking})
+        logger.info(f"🤖 AI Reply: {final_reply[:200]}")
 
         
         # Save User Query
@@ -381,7 +319,7 @@ async def chat_endpoint(
 
         return {
             "reply": final_reply,
-            "reasoning": ai_thinking, # Optional: Remove this line if you don't want to send logic to frontend
+            "reasoning": ai_thinking, 
             "citations": [d.metadata.get('source') for d in docs]
         }
 
