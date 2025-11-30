@@ -2,7 +2,8 @@
 A FastAPI-based mental health chatbot powered by RAG (Retrieval Augmented Generation) using Google's Gemini AI, Qdrant vector database, and MongoDB for chat history.
 ## Images
 
-<img width="500" height="313" alt="result1" src="https://github.com/user-attachments/assets/8bf7d7da-6416-4a84-8438-cdc7a334655b" /> <img width="518" height="321" alt="result2" src="https://github.com/user-attachments/assets/5c1259be-4a1c-4908-9fd1-a3ad6beab08c" />
+<img width="518" height="350" alt="result1" src="https://github.com/user-attachments/assets/8bf7d7da-6416-4a84-8438-cdc7a334655b" /> 
+<img width="518" height="350" alt="result2" src="https://github.com/user-attachments/assets/5c1259be-4a1c-4908-9fd1-a3ad6beab08c" />
 
 
 
