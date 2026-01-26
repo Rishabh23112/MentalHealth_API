@@ -1,28 +1,34 @@
 # Mental Health RAG API
-A FastAPI-based mental health chatbot powered by RAG (Retrieval Augmented Generation) using Google's Gemini AI, Qdrant vector database, and MongoDB for chat history.
+
+A FastAPI-based mental health chatbot powered by **Hybrid RAG** (Retrieval Augmented Generation). It combines **Local Embeddings (HuggingFace)** for privacy and infinite search, with **Google's Gemini 2.5 Flash** for empathetic reasoning. It includes a robust Crisis Detection system with multi-channel alerts.
+
 ## Images
 
 <img width="518" height="350" alt="result1" src="https://github.com/user-attachments/assets/8bf7d7da-6416-4a84-8438-cdc7a334655b" /> 
 <img width="518" height="350" alt="result2" src="https://github.com/user-attachments/assets/5c1259be-4a1c-4908-9fd1-a3ad6beab08c" />
 
-
-
-
 ## Features
 
-- **Conversational AI**: Empathetic mental health support with context-aware responses
-- **RAG Integration**: Retrieves relevant information from Qdrant vector store
-- **PDF Upload**: Upload and analyze mental health documents
-- **Chat History**: Persistent session management via MongoDB
-- **Crisis Detection**: Built-in safety protocols for emergency situations
+- **Hybrid RAG Architecture**: 
+  - **Search**: Uses `all-MiniLM-L6-v2` locally on CPU (FAST, FREE, NO Rate Limits).
+  - **Answer**: Uses Google Gemini 2.5 Flash for high-quality generation.
+- **Smart Crisis Detection**:
+  - **Sliding Window Analysis**: Detects crisis phrases hidden in long messages.
+  - **Regex Fallback**: Instant detection for critical keywords.
+  - **Zero-Latency**: Background thread initialization prevents server lag.
+- **Multi-Channel Alerts**:
+  - **Primary**: SMS via Twilio (High Reliability).
+  - **Fallback**: Telegram Bot (Automatic backup if SMS fails).
+- **Persistent Chat**: History stored in MongoDB Atlas.
 
 ## Tech Stack
 
-- FastAPI, Uvicorn
-- LangChain (Google Generative AI, Qdrant)
-- MongoDB (chat history)
-- Qdrant (vector database)
-- Google Gemini AI (LLM + Embeddings)
+- **Backend**: FastAPI, Uvicorn
+- **LLM**: Google Gemini 2.5 Flash
+- **Embeddings**: HuggingFace `all-MiniLM-L6-v2` (Local/CPU)
+- **Vector DB**: Qdrant (Cloud)
+- **Database**: MongoDB (History)
+- **Alerts**: Twilio (SMS), Telegram Bot API
 
 ## Setup
 
@@ -31,15 +37,15 @@ A FastAPI-based mental health chatbot powered by RAG (Retrieval Augmented Genera
 pip install -r requirements.txt
 ```
 
-2. **Create `.env` file**:
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-MONGO_URI=mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority
-QDRANT_URL=https://your-cluster.qdrant.cloud
-QDRANT_API_KEY=your_qdrant_api_key_here
+2. **Configure Environment**:
+   Copy `.env.example` to `.env`:
+```bash
+copy .env.example .env
 ```
+   Fill in your keys in `.env` (Gemini, Mongo, Qdrant, Twilio, Telegram).
 
 3. **Run the server**:
+   The first run will download the embedding model (20MB) automatically.
 ```bash
 uvicorn main:app --reload
 ```
@@ -49,16 +55,18 @@ uvicorn main:app --reload
 ### POST `/chat`
 
 **Parameters**:
-- `query` (str): User message
+- `query` (str): User message (e.g., "I feel anxious")
 - `session_id` (str): Unique session identifier
-- `file` (optional): PDF file upload
+- `file` (optional): PDF file upload for document analysis
+- `user_name` (str): User's name
+- `user_location` (str): User's location (for emergency alerts)
 
 **Response**:
 ```json
 {
-  "reply": "AI response",
-  "reasoning": "Internal thinking process",
-  "citations": ["source1", "source2"]
+  "reply": "I understand you're feeling anxious. Have you tried box breathing?...",
+  "reasoning": "User expressed anxiety. RAG retrieved calming techniques.",
+  "citations": ["Clinical Handbook v1", "Safety Protocol"]
 }
 ```
 
@@ -66,15 +74,21 @@ uvicorn main:app --reload
 
 | Variable | Description |
 |----------|-------------|
-| `GEMINI_API_KEY` | Google Gemini API key |
+| `GEMINI_API_KEY` | Google Gemini API key (LLM) |
 | `MONGO_URI` | MongoDB Atlas connection string |
 | `QDRANT_URL` | Qdrant cloud URL |
 | `QDRANT_API_KEY` | Qdrant API key |
+| `HELPLINE_PHONE_NUMBER` | Emergency contact number for SMS alerts |
+| `TWILIO_ACCOUNT_SID` | Twilio Account SID |
+| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
+| `TWILIO_MESSAGING_SERVICE_SID` | Twilio Messaging Service SID |
+| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token |
+| `TELEGRAM_CHAT_ID` | Telegram Chat ID for alerts |
 
 ## Getting API Keys
 
 - **GEMINI_API_KEY**: [Google AI Studio](https://makersuite.google.com/app/apikey)
 - **MONGO_URI**: [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
 - **QDRANT**: [Qdrant Cloud](https://cloud.qdrant.io/)
-
-
+- **TWILIO**: [Twilio Console](https://console.twilio.com/)
+- **TELEGRAM**: [Telegram BotFather](https://t.me/botfather)
