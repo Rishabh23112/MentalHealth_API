@@ -4,8 +4,13 @@ A FastAPI-based mental health chatbot powered by **Hybrid RAG** (Retrieval Augme
 
 ## Images
 
-<img width="518" height="350" alt="result1" src="https://github.com/user-attachments/assets/8bf7d7da-6416-4a84-8438-cdc7a334655b" /> 
-<img width="518" height="350" alt="result2" src="https://github.com/user-attachments/assets/5c1259be-4a1c-4908-9fd1-a3ad6beab08c" />
+<img width="650" height="1300" alt="Screenshot 2026-01-26 152546" src="https://github.com/user-attachments/assets/de060f7a-279c-4c4e-91bc-e160a83c4764" /> 
+<img width="650" height="1300" alt="Twilio Trigger" src="https://github.com/user-attachments/assets/f275f8ff-4c24-402f-ab78-0a32662d7bc8" /><img width="300" height="500" alt="image" src="https://github.com/user-attachments/assets/049fbf62-3a67-45b3-a04c-e464dc476338" />
+<img width="650" height="1300" alt="telegram trigger" src="https://github.com/user-attachments/assets/5d6b80ea-cc46-43c8-a618-6f07d2d651ee" /><img width="300" height="500" alt="image" src="https://github.com/user-attachments/assets/32155403-3385-4d8e-a372-f58a04ea745d" />
+
+
+
+
 
 ## Features
 
